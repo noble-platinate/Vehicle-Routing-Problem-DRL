@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras.layers import LSTMCell
 
 class DecodeStep(object):
     '''
@@ -12,7 +13,7 @@ class DecodeStep(object):
             n_glimpses=0,
             mask_glimpses=True,
             mask_pointer=True,
-            _scope=''):
+            name=''):
         '''
         This class does one-step of decoding.
         Inputs:
@@ -23,7 +24,7 @@ class DecodeStep(object):
             n_glimpses:     number of glimpses
             mask_glimpses:  whether to use masking for the glimpses or not
             mask_pointer:   whether to use masking for the glimpses or not
-            _scope:         variable scope
+            name:         variable scope
         '''
 
         self.hidden_dim = hidden_dim
@@ -32,7 +33,7 @@ class DecodeStep(object):
         self.n_glimpses = n_glimpses
         self.mask_glimpses = mask_glimpses
         self.mask_pointer = mask_pointer
-        self._scope = _scope
+        self.name = name
         self.BIGNUMBER = 100000.
 
 
@@ -42,14 +43,14 @@ class DecodeStep(object):
         for i in range(self.n_glimpses):
             self.glimpses[i] = ClAttention(hidden_dim, 
                 use_tanh=False,
-                _scope=self._scope,
+                name=self.name,
                 _name="Glimpse"+str(i))
             
         # build TF variables required for pointer
         self.pointer = ClAttention(hidden_dim, 
             use_tanh=use_tanh, 
             C=tanh_exploration,
-            _scope=self._scope,
+            name=self.name,
             _name="Decoder/Attention")
 
     def get_logit_op(self,
@@ -127,24 +128,38 @@ class DecodeStep(object):
 
         return logit, prob, logprob, decoder_state
 
+class CustomLSTMCell(tf.keras.layers.Layer):
+    def __init__(self, units, dropout_rate, forget_bias=1.0):
+        super(CustomLSTMCell, self).__init__()
+        self.units = units
+        self.forget_bias = forget_bias
+        self.dropout_layer = tf.keras.layers.Dropout(dropout_rate)
+        self.lstm_cell = tf.keras.layers.LSTMCell(units, unit_forget_bias=forget_bias)
+        self.state_size = (units, units)
+
+    def call(self, inputs, states):
+        outputs, new_states = self.lstm_cell(inputs, states)
+        outputs = self.dropout_layer(outputs)
+        return outputs, new_states
+
 class RNNDecodeStep(DecodeStep):
     '''
-    Decodes the sequence. It keeps the decoding history in a RNN.
+    Decodes the sequence. It keeps the decoding history in an RNN.
     '''
     def __init__(self, 
-            ClAttention,
-            hidden_dim,
-            use_tanh=False,
-            tanh_exploration=10.,
-            n_glimpses=0,
-            mask_glimpses=True,
-            mask_pointer=True,
-            forget_bias=1.0,
-            rnn_layers=1,
-            _scope=''):
+                 ClAttention,
+                 hidden_dim,
+                 use_tanh=False,
+                 tanh_exploration=10.,
+                 n_glimpses=0,
+                 mask_glimpses=True,
+                 mask_pointer=True,
+                 forget_bias=1.0,
+                 rnn_layers=1,
+                 name=''):
 
         '''
-        This class does one-step of decoding which uses RNN for storing the sequence info.
+        This class does one step of decoding which uses an RNN for storing the sequence information.
         Inputs:
             ClAttention:    the class which is used for attention
             hidden_dim:     hidden dimension of RNN
@@ -155,29 +170,24 @@ class RNNDecodeStep(DecodeStep):
             mask_pointer:   whether to use masking for the glimpses or not
             forget_bias:    forget bias of LSTM
             rnn_layers:     number of LSTM layers
-            _scope:         variable scope
-
+            name:         variable scope
         '''
 
-        super(RNNDecodeStep,self).__init__(ClAttention,
-                                        hidden_dim,
-                                        use_tanh=use_tanh,
-                                        tanh_exploration=tanh_exploration,
-                                        n_glimpses=n_glimpses,
-                                        mask_glimpses=mask_glimpses,
-                                        mask_pointer=mask_pointer,
-                                        _scope=_scope)
+        super(RNNDecodeStep, self).__init__(ClAttention,
+                                            hidden_dim,
+                                            use_tanh=use_tanh,
+                                            tanh_exploration=tanh_exploration,
+                                            n_glimpses=n_glimpses,
+                                            mask_glimpses=mask_glimpses,
+                                            mask_pointer=mask_pointer,
+                                            name=name)
         self.forget_bias = forget_bias
-        self.rnn_layers = rnn_layers     
-#         self.dropout = tf.placeholder(tf.float32,name='decoder_rnn_dropout')
+        self.rnn_layers = rnn_layers
 
-        # build a multilayer LSTM cell
-        single_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_dim, 
-            forget_bias=forget_bias)
-        self.dropout = tf.placeholder(tf.float32,name='decoder_rnn_dropout') 
-        single_cell = tf.contrib.rnn.DropoutWrapper(
-                cell=single_cell, input_keep_prob=(1.0 - self.dropout))
-        self.cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * rnn_layers)
+        custom_cell = CustomLSTMCell(hidden_dim, dropout_rate=0.0, forget_bias=forget_bias)
+        self.dropout_rate = tf.Variable(0.0, dtype=tf.float32, name='decoder_rnn_dropout')
+        self.cell = tf.keras.layers.RNN(custom_cell, return_sequences=True)
+
 
     def get_logit_op(self,
                     decoder_inp,
@@ -211,7 +221,7 @@ class RNNDecodeStep(DecodeStep):
         _ , decoder_state = tf.nn.dynamic_rnn(self.cell,
                                               decoder_inp,
                                               initial_state=decoder_state,
-                                              scope=self._scope+'Decoder/LSTM/rnn')
+                                              scope=self.name+'Decoder/LSTM/rnn')
         hy = decoder_state[-1].h
 
         # glimpses

@@ -15,7 +15,7 @@ class RLAgent(object):
                 clAttentionActor,
                 clAttentionCritic,
                 is_train=True,
-                _scope=''):
+                name=''):
         '''
         This class builds the model and run testt and train.
         Inputs:
@@ -39,7 +39,7 @@ class RLAgent(object):
         self.clAttentionCritic = clAttentionCritic
         
         self.embedding = LinearEmbedding(args['embedding_dim'],
-            _scope=_scope+'Actor/')
+            name=name+'Actor/')
         self.decodeStep = RNNDecodeStep(clAttentionActor,
                         args['hidden_dim'], 
                         use_tanh=args['use_tanh'],
@@ -49,9 +49,9 @@ class RLAgent(object):
                         mask_pointer=args['mask_pointer'], 
                         forget_bias=args['forget_bias'], 
                         rnn_layers=args['rnn_layers'],
-                        _scope='Actor/')
-        self.decoder_input = tf.get_variable('decoder_input', [1,1,args['embedding_dim']],
-                       initializer=tf.contrib.layers.xavier_initializer())
+                        name='Actor/')
+        self.decoder_input = tf.Variable(tf.keras.initializers.GlorotUniform()([1, 1, args['embedding_dim']]), name='decoder_input')
+
 
         start_time  = time.time()
         if is_train:
@@ -105,6 +105,7 @@ class RLAgent(object):
         # decoder_state
         initial_state = tf.zeros([args['rnn_layers'], 2, batch_size*beam_width, args['hidden_dim']])
         l = tf.unstack(initial_state, axis=0)
+        print
         decoder_state = tuple([tf.nn.rnn_cell.LSTMStateTuple(l[idx][0],l[idx][1])
                   for idx in range(args['rnn_layers'])])            
 
@@ -221,8 +222,8 @@ class RLAgent(object):
         ### critic
         v = tf.constant(0)
         if decode_type=='stochastic':
-            with tf.variable_scope("Critic"):
-                with tf.variable_scope("Encoder"):
+            with tf.name_scope("Critic"):
+                with tf.name_scope("Encoder"):
                     # init states
                     initial_state = tf.zeros([args['rnn_layers'], 2, batch_size, args['hidden_dim']])
                     l = tf.unstack(initial_state, axis=0)
@@ -231,7 +232,7 @@ class RLAgent(object):
 
                     hy = rnn_tuple_state[0][1]
 
-                with tf.variable_scope("Process"):
+                with tf.name_scope("Process"):
                     for i in range(args['n_process_blocks']):
 
                         process = self.clAttentionCritic(args['hidden_dim'],_name="P"+str(i))
@@ -242,8 +243,8 @@ class RLAgent(object):
                         #[batch_size x h_dim ]
                         hy = tf.squeeze(tf.matmul(tf.expand_dims(prob,1), e ) ,1)
 
-                with tf.variable_scope("Linear"):
-                    v = tf.squeeze(tf.layers.dense(tf.layers.dense(hy,args['hidden_dim']\
+                with tf.name_scope("Linear"):
+                    v = tf.squeeze(tf.keras.layers.dense(tf.keras.layers.dense(hy,args['hidden_dim']\
                                                                ,tf.nn.relu,name='L1'),1,name='L2'),1)
 
 
