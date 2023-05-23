@@ -144,22 +144,22 @@ class CustomLSTMCell(tf.keras.layers.Layer):
 
 class RNNDecodeStep(DecodeStep):
     '''
-    Decodes the sequence. It keeps the decoding history in an RNN.
+    Decodes the sequence. It keeps the decoding history in a RNN.
     '''
     def __init__(self, 
-                 ClAttention,
-                 hidden_dim,
-                 use_tanh=False,
-                 tanh_exploration=10.,
-                 n_glimpses=0,
-                 mask_glimpses=True,
-                 mask_pointer=True,
-                 forget_bias=1.0,
-                 rnn_layers=1,
-                 name=''):
+            ClAttention,
+            hidden_dim,
+            use_tanh=False,
+            tanh_exploration=10.,
+            n_glimpses=0,
+            mask_glimpses=True,
+            mask_pointer=True,
+            forget_bias=1.0,
+            rnn_layers=1,
+            name=''):
 
         '''
-        This class does one step of decoding which uses an RNN for storing the sequence information.
+        This class does one-step of decoding which uses RNN for storing the sequence info.
         Inputs:
             ClAttention:    the class which is used for attention
             hidden_dim:     hidden dimension of RNN
@@ -170,23 +170,31 @@ class RNNDecodeStep(DecodeStep):
             mask_pointer:   whether to use masking for the glimpses or not
             forget_bias:    forget bias of LSTM
             rnn_layers:     number of LSTM layers
-            name:         variable scope
+            _scope:         variable scope
+
         '''
 
-        super(RNNDecodeStep, self).__init__(ClAttention,
-                                            hidden_dim,
-                                            use_tanh=use_tanh,
-                                            tanh_exploration=tanh_exploration,
-                                            n_glimpses=n_glimpses,
-                                            mask_glimpses=mask_glimpses,
-                                            mask_pointer=mask_pointer,
-                                            name=name)
+        super(RNNDecodeStep,self).__init__(ClAttention,
+                                        hidden_dim,
+                                        use_tanh=use_tanh,
+                                        tanh_exploration=tanh_exploration,
+                                        n_glimpses=n_glimpses,
+                                        mask_glimpses=mask_glimpses,
+                                        mask_pointer=mask_pointer,
+                                        name=name)
         self.forget_bias = forget_bias
-        self.rnn_layers = rnn_layers
+        self.rnn_layers = rnn_layers     
+#         self.dropout = tf.placeholder(tf.float32,name='decoder_rnn_dropout')
+        tf.compat.v1.disable_eager_execution()
 
-        custom_cell = CustomLSTMCell(hidden_dim, dropout_rate=0.0, forget_bias=forget_bias)
-        self.dropout_rate = tf.Variable(0.0, dtype=tf.float32, name='decoder_rnn_dropout')
-        self.cell = tf.keras.layers.RNN(custom_cell, return_sequences=True)
+        # Build a multilayer LSTM cell
+        single_cell = tf.keras.layers.LSTMCell(hidden_dim, 
+            unit_forget_bias=forget_bias)
+        self.dropout = tf.Variable(0.0,dtype=tf.float32, name='decoder_rnn_dropout') 
+        single_cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(
+                cell=single_cell, input_keep_prob=(1.0 - self.dropout))
+        self.cell = tf.compat.v1.nn.rnn_cell.MultiRNNCell([single_cell] * rnn_layers)
+
 
 
     def get_logit_op(self,
@@ -218,10 +226,11 @@ class RNNDecodeStep(DecodeStep):
         """
 
 #         decoder_inp = tf.reshape(decoder_inp,[-1,1,self.hidden_dim])
-        _ , decoder_state = tf.nn.dynamic_rnn(self.cell,
+        _ , decoder_state = tf.compat.v1.nn.dynamic_rnn(self.cell,
                                               decoder_inp,
                                               initial_state=decoder_state,
                                               scope=self.name+'Decoder/LSTM/rnn')
+        
         hy = decoder_state[-1].h
 
         # glimpses

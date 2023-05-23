@@ -105,8 +105,8 @@ class RLAgent(object):
         # decoder_state
         initial_state = tf.zeros([args['rnn_layers'], 2, batch_size*beam_width, args['hidden_dim']])
         l = tf.unstack(initial_state, axis=0)
-        print
-        decoder_state = tuple([tf.nn.rnn_cell.LSTMStateTuple(l[idx][0],l[idx][1])
+        
+        decoder_state = tuple([tf.compat.v1.nn.rnn_cell.LSTMStateTuple(l[idx][0],l[idx][1])
                   for idx in range(args['rnn_layers'])])            
 
         # start from depot in VRP and from a trainable nodes in TSP
