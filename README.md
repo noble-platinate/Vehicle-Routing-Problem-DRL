@@ -11,7 +11,7 @@ Implementation of our paper: [Reinforcement Learning for Solving the Vehicle Rou
 
 
 * Numpy
-* [tensorflow](https://www.tensorflow.org/)>=1.2
+* [tensorflow](https://www.tensorflow.org/)>=2.x
 * tqdm
 
 ## How to Run
