@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.keras.layers import LSTMCell
 
 class DecodeStep(object):
     '''
@@ -13,7 +12,7 @@ class DecodeStep(object):
             n_glimpses=0,
             mask_glimpses=True,
             mask_pointer=True,
-            name=''):
+            _scope=''):
         '''
         This class does one-step of decoding.
         Inputs:
@@ -24,7 +23,7 @@ class DecodeStep(object):
             n_glimpses:     number of glimpses
             mask_glimpses:  whether to use masking for the glimpses or not
             mask_pointer:   whether to use masking for the glimpses or not
-            name:         variable scope
+            _scope:         variable scope
         '''
 
         self.hidden_dim = hidden_dim
@@ -33,7 +32,7 @@ class DecodeStep(object):
         self.n_glimpses = n_glimpses
         self.mask_glimpses = mask_glimpses
         self.mask_pointer = mask_pointer
-        self.name = name
+        self._scope = _scope
         self.BIGNUMBER = 100000.
 
 
@@ -43,14 +42,14 @@ class DecodeStep(object):
         for i in range(self.n_glimpses):
             self.glimpses[i] = ClAttention(hidden_dim, 
                 use_tanh=False,
-                name=self.name,
+                _scope=self._scope,
                 _name="Glimpse"+str(i))
             
         # build TF variables required for pointer
         self.pointer = ClAttention(hidden_dim, 
             use_tanh=use_tanh, 
             C=tanh_exploration,
-            name=self.name,
+            _scope=self._scope,
             _name="Decoder/Attention")
 
     def get_logit_op(self,
@@ -128,20 +127,6 @@ class DecodeStep(object):
 
         return logit, prob, logprob, decoder_state
 
-class CustomLSTMCell(tf.keras.layers.Layer):
-    def __init__(self, units, dropout_rate, forget_bias=1.0):
-        super(CustomLSTMCell, self).__init__()
-        self.units = units
-        self.forget_bias = forget_bias
-        self.dropout_layer = tf.keras.layers.Dropout(dropout_rate)
-        self.lstm_cell = tf.keras.layers.LSTMCell(units, unit_forget_bias=forget_bias)
-        self.state_size = (units, units)
-
-    def call(self, inputs, states):
-        outputs, new_states = self.lstm_cell(inputs, states)
-        outputs = self.dropout_layer(outputs)
-        return outputs, new_states
-
 class RNNDecodeStep(DecodeStep):
     '''
     Decodes the sequence. It keeps the decoding history in a RNN.
@@ -156,7 +141,7 @@ class RNNDecodeStep(DecodeStep):
             mask_pointer=True,
             forget_bias=1.0,
             rnn_layers=1,
-            name=''):
+            _scope=''):
 
         '''
         This class does one-step of decoding which uses RNN for storing the sequence info.
@@ -181,21 +166,18 @@ class RNNDecodeStep(DecodeStep):
                                         n_glimpses=n_glimpses,
                                         mask_glimpses=mask_glimpses,
                                         mask_pointer=mask_pointer,
-                                        name=name)
+                                        _scope=_scope)
         self.forget_bias = forget_bias
         self.rnn_layers = rnn_layers     
 #         self.dropout = tf.placeholder(tf.float32,name='decoder_rnn_dropout')
-        tf.compat.v1.disable_eager_execution()
 
-        # Build a multilayer LSTM cell
-        single_cell = tf.keras.layers.LSTMCell(hidden_dim, 
-            unit_forget_bias=forget_bias)
-        self.dropout = tf.Variable(0.0,dtype=tf.float32, name='decoder_rnn_dropout') 
+        # build a multilayer LSTM cell
+        single_cell = tf.compat.v1.nn.rnn_cell.BasicLSTMCell(hidden_dim, 
+            forget_bias=forget_bias)
+        self.dropout = tf.compat.v1.placeholder(tf.float32,name='decoder_rnn_dropout') 
         single_cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(
                 cell=single_cell, input_keep_prob=(1.0 - self.dropout))
         self.cell = tf.compat.v1.nn.rnn_cell.MultiRNNCell([single_cell] * rnn_layers)
-
-
 
     def get_logit_op(self,
                     decoder_inp,
@@ -229,8 +211,7 @@ class RNNDecodeStep(DecodeStep):
         _ , decoder_state = tf.compat.v1.nn.dynamic_rnn(self.cell,
                                               decoder_inp,
                                               initial_state=decoder_state,
-                                              scope=self.name+'Decoder/LSTM/rnn')
-        
+                                              scope=self._scope+'Decoder/LSTM/rnn')
         hy = decoder_state[-1].h
 
         # glimpses

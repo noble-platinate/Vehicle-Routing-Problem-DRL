@@ -24,7 +24,7 @@ def create_VRP_dataset(
         data: a numpy array with shape [n_problems x (n_cust+1) x 3]
         in the last dimension, we have x,y,demand for customers. The last node is for depot and 
         it has demand 0.
-    '''
+     '''
 
     # set random number generator
     n_nodes = n_cust +1
@@ -144,9 +144,8 @@ class Env(object):
         self.n_nodes = args['n_nodes']
         self.n_cust = args['n_cust']
         self.input_dim = args['input_dim']
-        # self.input_data = tf.placeholder(tf.float32,\
-        #     shape=[None,self.n_nodes,self.input_dim])
-        self.input_data = tf.keras.Input(shape=[self.n_nodes,self.input_dim], dtype=tf.float32)
+        self.input_data = tf.compat.v1.placeholder(tf.float32,\
+            shape=[None,self.n_nodes,self.input_dim])
 
         self.input_pnt = self.input_data[:,:,:2]
         self.demand = self.input_data[:,:,-1]
@@ -171,7 +170,6 @@ class Env(object):
 
         # demand: [batch_size * beam_width, max_time]
         # demand[i] = demand[i+batchsize]
-        print(self.demand)
         self.demand = tf.tile(self.demand, [self.beam_width,1])
 
         # load: [batch_size * beam_width]
