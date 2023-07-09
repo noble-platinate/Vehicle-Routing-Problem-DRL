@@ -34,7 +34,7 @@ def create_VRP_dataset(
         rnd = np.random.RandomState(seed)
     
     # build task name and datafiles
-    task_name = 'vrp-size-{}-len-{}-{}.txt'.format(n_problems, n_nodes,data_type)
+    task_name = 'output.txt'.format(n_problems, n_nodes, data_type)
     fname = os.path.join(data_dir, task_name)
 
     # cteate/load data
@@ -276,14 +276,16 @@ def reward_func(sample_solution):
 
 
     # make sample_solution of shape [sourceL x batch_size x input_dim]
-    sample_solution = tf.stack(sample_solution,0)
+    sample_solution = tf.stack(sample_solution, 0)
+    sample_solution_tilted = tf.concat((tf.expand_dims(sample_solution[-1], 0),
+                                        sample_solution[:-1]), 0)
 
-    sample_solution_tilted = tf.concat((tf.expand_dims(sample_solution[-1],0),
-         sample_solution[:-1]),0)
-    # get the reward based on the route lengths
+    # Calculate the distance based on the condition
+    diff = sample_solution_tilted - sample_solution
+    condition = tf.equal(diff[:, :, 0], 0)
+    distances = tf.where(condition, diff[:, :, 1], diff[:, :, 1] + 100)
 
-
-    route_lens_decoded = tf.reduce_sum(tf.pow(tf.reduce_sum(tf.pow(\
-        (sample_solution_tilted - sample_solution) ,2), 2) , .5), 0)
-    return route_lens_decoded 
+    # Calculate the route lengths
+    route_lens_decoded = tf.reduce_sum(distances, axis=0)
+    return route_lens_decoded
 
