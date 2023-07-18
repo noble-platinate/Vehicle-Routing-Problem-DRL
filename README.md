@@ -1,11 +1,11 @@
 
-# Reinforcement Learning for Solving the Vehicle Routing Problem
+# Deep Reinforcement Learning for Production Scheduling
 
-We use Reinforcement for solving Travelling Salesman Problem (TSP) and Vehicle Routing Problem (VRP).
+We use Deep Reinforcement Learning for solving Production Scheduling, motivated from the code from Vehicle Routing Problem
 
 
 ## Paper
-Implementation of our paper: [Reinforcement Learning for Solving the Vehicle Routing Problem](https://arxiv.org/abs/1802.04240v2). 
+Implementation of the original paper: [Reinforcement Learning for Solving the Vehicle Routing Problem](https://arxiv.org/abs/1802.04240v2). 
 
 ## Dependencies
 
@@ -37,9 +37,6 @@ python main.py --task=vrp10 --is_train=False --infer_type=single --model_dir=./p
 ```
 ### Logs
 All logs are stored in ``result.txt`` file stored in ``./logs/task_date_time`` directory.
-## Sample CVRP solution
-
-![enter image description here](https://lh3.googleusercontent.com/eUh69ZQsIV4SIE6RjwasAEkdw2VZaTmaeR8Fqk33di70-BGU62fvmcp6HLeGLE61lJDS7jLMpFf2 "Sample VRP")
 
 ## Acknowledgements
 Thanks to [pemami4911/neural-combinatorial-rl-pytorch](https://github.com/pemami4911/neural-combinatorial-rl-pytorch) for getting the idea of restructuring the code.
