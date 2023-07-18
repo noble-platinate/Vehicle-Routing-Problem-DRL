@@ -250,8 +250,7 @@ class Env(object):
         return state
 
 def reward_func(sample_solution):
-    """The reward for the VRP task is defined as the 
-    negative value of the route length
+    """The reward for the VRP task is defined as the negative value of the route length
 
     Args:
         sample_solution : a list tensor of size decode_len of shape [batch_size x input_dim]
@@ -266,26 +265,29 @@ def reward_func(sample_solution):
         batch_size = 2
         input_dim = 2
         sample_solution_tilted[ [[5,5]
-                                                    #  [6,6]]
-                                                    # [[1,1]
-                                                    #  [2,2]]
-                                                    # [[3,3]
-                                                    #  [4,4]] ]
+                                 [6,6]]
+                                [[1,1]
+                                 [2,2]]
+                                [[3,3]
+                                 [4,4]] ]
     """
     # make init_solution of shape [sourceL x batch_size x input_dim]
 
 
     # make sample_solution of shape [sourceL x batch_size x input_dim]
     sample_solution = tf.stack(sample_solution, 0)
+
     sample_solution_tilted = tf.concat((tf.expand_dims(sample_solution[-1], 0),
                                         sample_solution[:-1]), 0)
+    
+    distances = tf.where(tf.equal(sample_solution_tilted[:, :, 0], sample_solution[:, :, 0]),
+                         tf.where(tf.greater(sample_solution_tilted[:, :, 1], sample_solution[:, :, 1]),
+                                  sample_solution_tilted[:, :, 1] - sample_solution[:, :, 1],
+                                  2 * (sample_solution_tilted[:, :, 1] - sample_solution[:, :, 1])),
+                         tf.where(tf.greater(sample_solution_tilted[:, :, 1], sample_solution[:, :, 1]),
+                                  sample_solution_tilted[:, :, 1] - sample_solution[:, :, 1] - 100,
+                                  2 * (sample_solution_tilted[:, :, 1] - sample_solution[:, :, 1] - 100)))
 
-    # Calculate the distance based on the condition
-    diff = sample_solution_tilted - sample_solution
-    condition = tf.equal(diff[:, :, 0], 0)
-    distances = tf.where(condition, diff[:, :, 1], diff[:, :, 1] + 100)
-
-    # Calculate the route lengths
     route_lens_decoded = tf.reduce_sum(distances, axis=0)
+    
     return route_lens_decoded
-
